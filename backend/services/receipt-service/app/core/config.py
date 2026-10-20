@@ -4,6 +4,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from urllib.parse import quote_plus
 
 
+def _async_database_url(url: str) -> str:
+    if url.startswith("postgres://"):
+        return "postgresql+asyncpg://" + url.removeprefix("postgres://")
+    if url.startswith("postgresql://"):
+        return "postgresql+asyncpg://" + url.removeprefix("postgresql://")
+    return url
+
+
 class Settings(BaseSettings):
     receipt_service_api_key: SecretStr | None = Field(
         default=None, validation_alias="RECEIPT_SERVICE_API_KEY"
@@ -31,7 +39,7 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         if self.database_url_override:
-            return self.database_url_override
+            return _async_database_url(self.database_url_override)
         if not self.database_configured:
             raise ValueError("Set DATABASE_URL or all POSTGRES_* credentials to use the database.")
         username = quote_plus(self.postgres_user or "")

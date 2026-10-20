@@ -13,6 +13,7 @@ from app.api.bookings import router as booking_router
 from app.core.config import get_settings
 from app.core.database import dispose_db_engine, get_engine, get_sessionmaker
 from app.repositories import BookingRepository
+from app.services.return_alerts import run_return_alert_job
 
 logger = logging.getLogger(__name__)
 
@@ -33,17 +34,22 @@ async def _expire_holds_forever() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     expiry_task = None
+    return_alert_task = None
     if get_settings().database_configured:
         expiry_task = asyncio.create_task(_expire_holds_forever())
+        return_alert_task = asyncio.create_task(run_return_alert_job())
     try:
         yield
     finally:
-        if expiry_task is not None:
-            expiry_task.cancel()
-            try:
-                await expiry_task
-            except asyncio.CancelledError:
-                pass
+        for task in (expiry_task, return_alert_task):
+            if task is not None:
+                task.cancel()
+        for task in (expiry_task, return_alert_task):
+            if task is not None:
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
         await dispose_db_engine()
 
 

@@ -10,7 +10,7 @@ export type Booking = {
   expires_at?: string | null; amount_minor?: number | null; currency: string;
   vehicle_make?: string | null; vehicle_model?: string | null; vehicle_color?: string | null;
   vehicle_license_plate?: string | null; payment_id?: string | null; status: string;
-  created_at: string;
+  agreement_version?: string; agreement_accepted_at?: string; created_at: string;
 };
 
 export type Receipt = {

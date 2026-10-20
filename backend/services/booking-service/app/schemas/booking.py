@@ -13,6 +13,8 @@ class BookingCreate(BaseModel):
     vehicle_id: UUID
     pickup_at: datetime
     return_at: datetime
+    agreement_accepted: bool
+    agreement_version: str = Field(min_length=1, max_length=40)
 
     @model_validator(mode="after")
     def validate_booking_window(self):
@@ -42,6 +44,8 @@ class BookingRead(BaseModel):
     vehicle_model: str | None
     vehicle_color: str | None
     vehicle_license_plate: str | None
+    agreement_version: str
+    agreement_accepted_at: datetime
     payment_id: UUID | None
     stripe_payment_intent_id: str | None
     status: Literal[

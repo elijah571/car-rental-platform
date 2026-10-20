@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.auth import router as auth_router
+from app.api.kyc import router as kyc_router
 from app.api.support import router as support_router
 from app.core.config import get_settings
 from app.core.database import dispose_db_engine, get_engine
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
     )
     application.include_router(auth_router)
+    application.include_router(kyc_router)
     application.include_router(support_router)
 
     @application.get("/", tags=["General"])

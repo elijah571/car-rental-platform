@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, Integer, String, Uuid, func
+from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -10,6 +10,7 @@ from app.core.database import Base
 class Booking(Base):
     __tablename__ = "bookings"
     __table_args__ = (
+        Index("ix_bookings_status_return_at", "status", "return_at"),
         CheckConstraint("return_at > pickup_at", name="ck_bookings_positive_window"),
         CheckConstraint(
             "status IN ('pending', 'confirmed', 'active', 'awaiting_inspection', "
@@ -32,6 +33,8 @@ class Booking(Base):
     vehicle_model: Mapped[str | None] = mapped_column(String(80), nullable=True)
     vehicle_color: Mapped[str | None] = mapped_column(String(60), nullable=True)
     vehicle_license_plate: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    agreement_version: Mapped[str] = mapped_column(String(40), nullable=False, default="draft-1", server_default="draft-1")
+    agreement_accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     payment_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), unique=True, nullable=True)
     stripe_payment_intent_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     status: Mapped[str] = mapped_column(

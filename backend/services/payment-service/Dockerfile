@@ -15,4 +15,4 @@ RUN pip install --no-cache-dir uv \
 
 EXPOSE 8004
 
-CMD ["sh", "-c", "uv run --locked --no-sync alembic upgrade head && exec uv run --locked --no-sync uvicorn app.main:app --host 0.0.0.0 --port 8004"]
+CMD ["sh", "-c", "uv run --locked --no-sync alembic upgrade head && exec uv run --locked --no-sync uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8004}"]

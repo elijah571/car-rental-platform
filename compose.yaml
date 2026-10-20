@@ -110,6 +110,12 @@ services:
       PAYMENT_SERVICE_URL: http://payment-service:8004
       RECEIPT_SERVICE_URL: http://receipt-service:8005
       RECEIPT_SERVICE_API_KEY: ${RECEIPT_SERVICE_API_KEY:-}
+      AUTH_SERVICE_URL: http://auth-service:8000
+      AUTH_SERVICE_API_KEY: ${AUTH_SERVICE_API_KEY:-}
+      NOTIFICATION_SERVICE_URL: http://notification-service:8003
+      NOTIFICATION_SERVICE_API_KEY: ${NOTIFICATION_SERVICE_API_KEY:-}
+      PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
+      RETURN_REMINDER_MINUTES: ${RETURN_REMINDER_MINUTES:-60}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     ports:
       - "127.0.0.1:8001:8001"
@@ -119,6 +125,10 @@ services:
       car-service:
         condition: service_healthy
       receipt-service:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      notification-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8001/health', timeout=2)"]

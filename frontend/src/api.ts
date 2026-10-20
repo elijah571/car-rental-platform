@@ -20,7 +20,6 @@ export const apiSlice = createApi({
   baseQuery: fetchBaseQuery({
     baseUrl: '',
     prepareHeaders: (headers) => {
-      headers.set('Content-Type', 'application/json');
       const token = tokenStore.get();
       if (token) headers.set('Authorization', `Bearer ${token}`);
       return headers;
@@ -48,15 +47,26 @@ function requestError(error: any) { const message = error?.data?.detail; return 
 // Existing page handlers use this small facade; all transport, auth headers, cache, and invalidation are RTK Query managed.
 export const api = {
   async auth(path: string, body: unknown) { return post<{ message?: string; verification_code?: string; user?: { id: string; email: string; name: string; role: string }; tokens?: Record<string, string> }>(`${authBase}${path}`, body); },
-  vehicles() { return get<Vehicle[]>(carBase); },
+  vehicles() { return get<Vehicle[]>(`${carBase}?limit=250`); },
+  vehicle(id: string) { return get<Vehicle>(`${carBase}/${id}`); },
   createVehicle(payload: Record<string, unknown>) { return post<Vehicle>(carBase, payload); },
   updateVehicle(id: string, payload: Record<string, unknown>) { return post<Vehicle>(`${carBase}/${id}`, payload, 'PATCH'); },
   deleteVehicle(id: string) { return post<Vehicle>(`${carBase}/${id}`, {}, 'DELETE'); },
-  availability(pickup: string, returnTime: string) { const query = new URLSearchParams({ pickup_at: pickup, return_at: returnTime }); return get<Vehicle[]>(`${bookingBase}/availability?${query}`); },
-  createBooking(vehicleId: string, pickup: string, returnTime: string) { return post<Booking>(bookingBase, { vehicle_id: vehicleId, pickup_at: pickup, return_at: returnTime }); },
+  availability(pickup: string, returnTime: string, make?: string) { const query = new URLSearchParams({ pickup_at: pickup, return_at: returnTime, limit: '250' }); if (make) query.set('make', make); return get<Vehicle[]>(`${bookingBase}/availability?${query}`); },
+  createBooking(vehicleId: string, pickup: string, returnTime: string) { return post<Booking>(bookingBase, { vehicle_id: vehicleId, pickup_at: pickup, return_at: returnTime, agreement_accepted: true, agreement_version: 'draft-1' }); },
+  kycStatus() { return get<KycStatus>(`${authBase}/kyc`); },
+  uploadKycDocument(type: 'driver_license' | 'identity_document', file: File) { const body = new FormData(); body.append('file', file); return post(`${authBase}/kyc/documents/${type}`, body); },
+  kycReviews() { return get<KycReview[]>(`${authBase}/admin/kyc`); },
+  reviewKycDocument(id: string, decision: 'approved' | 'rejected', note: string) { return post(`${authBase}/admin/kyc/documents/${id}/review`, { decision, note }); },
+  async kycDocument(id: string) {
+    const response = await fetch(`${authBase}/admin/kyc/documents/${id}`, { headers: { Authorization: `Bearer ${tokenStore.get()}` }, cache: 'no-store' });
+    if (!response.ok) throw new Error('Could not load the private verification document.');
+    return URL.createObjectURL(await response.blob());
+  },
   bookings() { return get<Booking[]>(bookingBase); },
   operationsBookings(status?: string) { const query = new URLSearchParams(); if (status) query.set('status', status); return get<Booking[]>(`${bookingBase}/operations${query.size ? `?${query}` : ''}`); },
   bookingAction(id: string, action: 'cancel' | 'start' | 'return' | 'inspection', payload?: unknown) { return post<Booking>(`${bookingBase}/${id}/${action}`, payload ?? {}); },
+  requestBookingReturn(id: string) { return post<Booking>(`${bookingBase}/${id}/return-request`, {}); },
   booking(id: string) { return get<Booking>(`${bookingBase}/${id}`); },
   receipt(id: string) { return get<Receipt>(`${bookingBase}/${id}/receipt`); },
   paymentIntent(id: string) { return post<{ client_secret: string; amount_minor: number; currency: string }>(`${bookingBase}/${id}/payment-intent`, {}, 'POST', { 'Idempotency-Key': `drivewell-${id}` }); },
@@ -72,6 +82,9 @@ export const api = {
 };
 
 declare global { interface Window { __drivewellDispatch?: (action: unknown) => any } }
+
+export type KycStatus = { status: 'not_submitted' | 'pending' | 'rejected' | 'verified'; documents: Record<'driver_license' | 'identity_document', 'missing' | 'pending' | 'approved' | 'rejected'> };
+export type KycReview = { user: { id: string; name: string; email: string }; status: KycStatus['status']; documents: KycStatus['documents']; items: Array<{ id: string; type: 'driver_license' | 'identity_document'; status: 'pending' | 'approved' | 'rejected'; filename: string; submitted_at: string; review_note?: string | null }> };
 
 export function imageFor(vehicle: Pick<Vehicle, 'make' | 'model' | 'category'>) {
   const key = `${vehicle.make} ${vehicle.model} ${vehicle.category}`.toLowerCase();

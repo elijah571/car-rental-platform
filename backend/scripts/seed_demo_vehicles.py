@@ -16,23 +16,23 @@ from app.models import Vehicle
 
 
 DEMO_VEHICLES = [
-    ("Tesla", "Roadster", "Red", 2024, "Premium", 2, "automatic", "electric", "DW-TES-001"),
-    ("Mercedes-Benz", "G-Class", "Black", 2023, "SUV", 5, "automatic", "petrol", "DW-MBZ-002"),
-    ("Mercedes-Benz", "C-Class", "Silver", 2024, "Sedan", 5, "automatic", "hybrid", "DW-MBZ-003"),
-    ("Ford", "Mustang", "Blue", 2023, "Premium", 4, "automatic", "petrol", "DW-FRD-004"),
-    ("Rolls-Royce", "Cullinan", "Black", 2024, "Premium", 5, "automatic", "petrol", "DW-RR-005"),
-    ("Lamborghini", "Huracan", "Yellow", 2023, "Premium", 2, "automatic", "petrol", "DW-LAM-006"),
-    ("Toyota", "Camry", "Silver", 2024, "Sedan", 5, "automatic", "hybrid", "DW-TOY-007"),
-    ("Toyota", "RAV4", "White", 2024, "SUV", 5, "automatic", "hybrid", "DW-TOY-008"),
-    ("BMW", "3 Series", "Graphite", 2024, "Premium", 5, "automatic", "petrol", "DW-BMW-009"),
-    ("Jeep", "Wrangler", "Green", 2023, "SUV", 5, "automatic", "petrol", "DW-JEP-010"),
+    ("Tesla", "Roadster", "Red", 2024, "Premium", 2, "automatic", "electric", "DW-TES-001", "45.00"),
+    ("Mercedes-Benz", "G-Class", "Black", 2023, "SUV", 5, "automatic", "petrol", "DW-MBZ-002", "60.00"),
+    ("Mercedes-Benz", "C-Class", "Silver", 2024, "Sedan", 5, "automatic", "hybrid", "DW-MBZ-003", "28.00"),
+    ("Ford", "Mustang", "Blue", 2023, "Premium", 4, "automatic", "petrol", "DW-FRD-004", "38.00"),
+    ("Rolls-Royce", "Cullinan", "Black", 2024, "Premium", 5, "automatic", "petrol", "DW-RR-005", "125.00"),
+    ("Lamborghini", "Huracan", "Yellow", 2023, "Premium", 2, "automatic", "petrol", "DW-LAM-006", "110.00"),
+    ("Toyota", "Camry", "Silver", 2024, "Sedan", 5, "automatic", "hybrid", "DW-TOY-007", "18.00"),
+    ("Toyota", "RAV4", "White", 2024, "SUV", 5, "automatic", "hybrid", "DW-TOY-008", "22.00"),
+    ("BMW", "3 Series", "Graphite", 2024, "Premium", 5, "automatic", "petrol", "DW-BMW-009", "35.00"),
+    ("Jeep", "Wrangler", "Green", 2023, "SUV", 5, "automatic", "petrol", "DW-JEP-010", "27.00"),
 ]
 
 
 async def main() -> None:
     added = 0
     async with get_sessionmaker()() as session:
-        for make, model, color, year, category, seats, transmission, fuel, plate in DEMO_VEHICLES:
+        for make, model, color, year, category, seats, transmission, fuel, plate, hourly_rate in DEMO_VEHICLES:
             existing = await session.scalar(
                 select(Vehicle).where(Vehicle.registration_number == plate)
             )
@@ -48,7 +48,7 @@ async def main() -> None:
                     seats=seats,
                     transmission=transmission,
                     fuel_type=fuel,
-                    hourly_rate=Decimal("100.00"),
+                    hourly_rate=Decimal(hourly_rate),
                     currency="USD",
                     registration_number=plate,
                     status="active",

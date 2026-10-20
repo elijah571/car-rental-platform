@@ -31,5 +31,5 @@ Set the shared `JWT_SECRET` used by auth-service. Vehicle writes require a valid
 
 Vehicles include a color snapshot field used by bookings and rental tickets. Existing records receive `unspecified` when migrated; supply a color for newly created vehicles.
 
-Creation and update requests validate vehicle properties and normalize registration numbers to uppercase. Registration numbers must be unique.
+Administrators set each vehicle’s `hourly_rate` when creating or editing inventory; prices are independent per vehicle and displayed as USD per hour. Creation and update requests validate vehicle properties and normalize registration numbers to uppercase. Registration numbers must be unique.
 

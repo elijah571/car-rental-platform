@@ -12,6 +12,14 @@ _ENV_FILE = next(
 )
 
 
+def _async_database_url(url: str) -> str:
+    if url.startswith("postgres://"):
+        return "postgresql+asyncpg://" + url.removeprefix("postgres://")
+    if url.startswith("postgresql://"):
+        return "postgresql+asyncpg://" + url.removeprefix("postgresql://")
+    return url
+
+
 class Settings(BaseSettings):
     auth_service_api_key: SecretStr | None = Field(default=None, validation_alias="AUTH_SERVICE_API_KEY")
     jwt_secret: SecretStr = Field(validation_alias="JWT_SECRET")
@@ -41,7 +49,7 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         if self.database_url_override:
-            return self.database_url_override
+            return _async_database_url(self.database_url_override)
         if not self.postgres_user or not self.postgres_password or not self.postgres_db:
             raise ValueError("Set DATABASE_URL or all POSTGRES_* credentials to use the database.")
         return (

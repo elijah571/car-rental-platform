@@ -17,12 +17,14 @@ page.setDefaultTimeout(15_000);
 const passed = [];
 const failures = [];
 let createdBookingId;
+let createdBookingAmount;
 let createdSubject;
+let availableVehicles = [];
 page.on('pageerror', (error) => failures.push(error.message));
 page.on('response', (response) => { if (response.status() >= 500) failures.push(`${response.status()} ${response.url()}`); });
 page.on('response', async (response) => {
   if (response.request().method() === 'POST' && /\/api\/bookings\/?$/.test(response.url()) && response.ok()) {
-    try { createdBookingId = (await response.json()).id; } catch { /* Ignore non-JSON responses. */ }
+    try { const booking = await response.json(); createdBookingId = booking.id; createdBookingAmount = booking.amount_minor; } catch { /* Ignore non-JSON responses. */ }
   }
 });
 
@@ -39,30 +41,18 @@ try {
   await page.locator('.auth-modal .modal-close').click();
   passed.push('resend verification-code flow handles unknown accounts generically');
 
-  async function searchDuration(hours) {
-    if (!(await page.locator('#rental-duration').count())) {
-      throw new Error(`Rental duration selector missing at ${page.url()}; headings: ${(await page.locator('h1').allTextContents()).join(' | ')}`);
-    }
-    await page.locator('#rental-duration').selectOption(String(hours));
-    const responsePromise = page.waitForResponse((response) => response.url().includes('/api/bookings/availability') && response.request().method() === 'GET');
-    await page.getByRole('button', { name: /Find a car/i }).click();
-    const response = await responsePromise;
-    if (!response.ok()) throw new Error(`Availability request failed for ${hours} hours (${response.status()}).`);
-    const vehicles = await response.json();
-    if (!vehicles.length) throw new Error(`No vehicles were available for the ${hours}-hour test window.`);
-    for (const vehicle of vehicles) {
-      const expected = Math.round(Number(vehicle.hourly_rate) * 100 * hours / 24);
-      if (vehicle.rental_total_minor !== expected) throw new Error(`Incorrect dynamic rental total for ${hours} hours.`);
-    }
-  }
-  await searchDuration(168);
-  await page.getByRole('link', { name: /Driveflow Car Rental Platform/i }).click();
-  await searchDuration(24);
+  if (await page.locator('#rental-duration').count()) throw new Error('Rental duration selector should only appear in checkout.');
+  const availabilityPromise = page.waitForResponse((response) => response.url().includes('/api/bookings/availability') && response.request().method() === 'GET');
+  await page.getByRole('button', { name: /Find a car/i }).click();
+  const availabilityResponse = await availabilityPromise;
+  if (!availabilityResponse.ok()) throw new Error(`Availability request failed (${availabilityResponse.status()}).`);
+  availableVehicles = await availabilityResponse.json();
+  if (!availableVehicles.length || availableVehicles.some((vehicle) => !Number(vehicle.hourly_rate))) throw new Error('Vehicles are missing their admin-set hourly rate.');
   const pickupAt = new Date(Date.now() + 86_400_000);
   const tooLong = new URLSearchParams({ pickup_at: pickupAt.toISOString(), return_at: new Date(pickupAt.getTime() + 8 * 86_400_000).toISOString() });
   const rejectedDuration = await page.request.get(`${baseURL}/api/bookings/availability?${tooLong}`);
   if (rejectedDuration.status() !== 422) throw new Error('The API accepted a rental longer than seven days.');
-  passed.push('rental duration dropdown and dynamic daily-rate totals through seven days');
+  passed.push('home search has no duration selector and vehicles expose their hourly rates');
   passed.push('booking API rejects rental durations longer than seven days');
   await page.getByRole('heading', { name: 'Available vehicles' }).waitFor();
   await page.getByRole('button', { name: /View details/i }).first().click();
@@ -91,11 +81,25 @@ try {
   }
 
   await page.getByRole('link', { name: /Driveflow Car Rental Platform/i }).click();
+  const pickupValue = await page.locator('input[type="datetime-local"]').inputValue();
+  const pickupInstant = new Date(pickupValue);
+  const weekAvailability = new URLSearchParams({ pickup_at: pickupInstant.toISOString(), return_at: new Date(pickupInstant.getTime() + 168 * 3_600_000).toISOString() });
+  const weekResponse = await page.request.get(`${baseURL}/api/bookings/availability?${weekAvailability}`);
+  if (!weekResponse.ok()) throw new Error('Could not find vehicles for the seven-day checkout test.');
+  const weekVehicles = await weekResponse.json();
+  const checkoutVehicle = weekVehicles[0];
+  if (!checkoutVehicle) throw new Error('No vehicle was available for a seven-day rental test.');
   await page.getByRole('button', { name: /Find a car/i }).click();
-  await page.getByRole('button', { name: /View details/i }).first().click();
-  await page.getByRole('button', { name: /Continue to booking/i }).click();
+  await page.locator('.vehicle-card').filter({ hasText: `${checkoutVehicle.make} ${checkoutVehicle.model}` }).first().getByRole('button', { name: /View details/i }).click();
+  await page.getByRole('button', { name: /Continue to checkout/i }).click();
+  await page.getByRole('heading', { name: 'Review your rental', exact: true }).waitFor();
+  await page.locator('#rental-duration').selectOption('168');
+  await page.getByText('Estimated total').waitFor();
+  await page.getByRole('button', { name: /Reserve & continue to payment/i }).click();
   await page.getByRole('heading', { name: 'Secure checkout', exact: true }).waitFor();
   if (!createdBookingId) throw new Error('The booking request succeeded in the UI but no booking ID was returned.');
+  const expectedTotal = Math.round(Number(checkoutVehicle.hourly_rate) * 100 * 168);
+  if (createdBookingAmount !== expectedTotal) throw new Error(`Server checkout total ${createdBookingAmount} did not match the ${expectedTotal} cent hourly-rate quote.`);
   passed.push('customer booking creation and checkout hold');
   await page.getByRole('button', { name: /Continue to payment/i }).click();
   await page.getByText(/Pay securely with Stripe|Stripe is not configured/i).waitFor();

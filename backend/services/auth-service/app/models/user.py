@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, String, Uuid, func
+from sqlalchemy import Boolean, DateTime, LargeBinary, String, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -29,3 +29,21 @@ class User(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+
+class KycDocument(Base):
+    """Privately stored, encrypted customer identity evidence."""
+
+    __tablename__ = "kyc_documents"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), index=True)
+    document_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    encrypted_content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    content_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(180), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", nullable=False)
+    review_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    reviewed_by: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

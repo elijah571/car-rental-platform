@@ -1,12 +1,23 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models import Booking, BookingStatusEvent, ProcessedPaymentEvent
 from app.schemas.booking import BookingCreate
+
+
+def _blocks_vehicle_for_window(pickup_at: datetime, return_at: datetime):
+    return or_(
+        Booking.status.in_(("active", "awaiting_inspection", "inspection_failed")),
+        and_(
+            Booking.status.in_(("pending", "confirmed")),
+            Booking.pickup_at < return_at,
+            Booking.return_at > pickup_at,
+        ),
+    )
 
 
 class BookingRepository:
@@ -32,16 +43,11 @@ class BookingRepository:
                     )
                 )
             )
-        blocking_statuses = (
-            "pending", "confirmed", "active", "awaiting_inspection", "inspection_failed"
-        )
         overlap = await self.session.scalar(
             select(Booking.id)
             .where(
                 Booking.vehicle_id == payload.vehicle_id,
-                Booking.status.in_(blocking_statuses),
-                Booking.pickup_at < payload.return_at,
-                Booking.return_at > payload.pickup_at,
+                _blocks_vehicle_for_window(payload.pickup_at, payload.return_at),
             )
             .limit(1)
         )
@@ -51,7 +57,7 @@ class BookingRepository:
         hold_minutes = get_settings().booking_hold_minutes
         expires_at = datetime.now(UTC) + timedelta(minutes=hold_minutes)
         booking = Booking(
-            **payload.model_dump(),
+            **payload.model_dump(exclude={"agreement_accepted"}),
             customer_id=customer_id,
             expires_at=expires_at,
             amount_minor=amount_minor,
@@ -106,17 +112,12 @@ class BookingRepository:
             await self.session.execute(
                 select(func.pg_advisory_xact_lock(func.hashtextextended(str(booking.vehicle_id), 0)))
             )
-        blocking_statuses = (
-            "pending", "confirmed", "active", "awaiting_inspection", "inspection_failed"
-        )
         conflict = await self.session.scalar(
             select(Booking.id)
             .where(
                 Booking.id != booking.id,
                 Booking.vehicle_id == booking.vehicle_id,
-                Booking.status.in_(blocking_statuses),
-                Booking.pickup_at < booking.return_at,
-                Booking.return_at > booking.pickup_at,
+                _blocks_vehicle_for_window(booking.pickup_at, booking.return_at),
             )
             .limit(1)
         )
@@ -177,6 +178,25 @@ class BookingRepository:
         result = await self.session.scalars(statement.limit(limit).offset(offset))
         return list(result.all())
 
+    async def list_active_returns_due_before(
+        self,
+        cutoff: datetime,
+        *,
+        after: datetime | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Booking]:
+        statement = select(Booking).where(
+            Booking.status == "active",
+            Booking.return_at <= cutoff,
+        )
+        if after is not None:
+            statement = statement.where(Booking.return_at > after)
+        result = await self.session.scalars(
+            statement.order_by(Booking.return_at.asc(), Booking.id.asc()).limit(limit).offset(offset)
+        )
+        return list(result.all())
+
     async def unavailable_vehicle_ids(
         self,
         vehicle_ids: list[UUID],
@@ -186,15 +206,13 @@ class BookingRepository:
     ) -> set[UUID]:
         if not vehicle_ids:
             return set()
-        blocking_statuses = (
-            "pending", "confirmed", "active", "awaiting_inspection", "inspection_failed"
-        )
+        # A vehicle stays out of the customer catalog for the full time it is
+        # rented and while its return is awaiting inspection. Pending and
+        # confirmed reservations only block their actual time window.
         result = await self.session.scalars(
             select(Booking.vehicle_id).where(
                 Booking.vehicle_id.in_(vehicle_ids),
-                Booking.status.in_(blocking_statuses),
-                Booking.pickup_at < return_at,
-                Booking.return_at > pickup_at,
+                _blocks_vehicle_for_window(pickup_at, return_at),
             )
         )
         return set(result.all())

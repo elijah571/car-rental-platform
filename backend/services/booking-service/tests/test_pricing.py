@@ -24,7 +24,7 @@ def test_duration_is_calculated_as_an_instant_across_timezones():
 def test_half_cent_rounds_up_to_nearest_cent():
     start = datetime(2030, 1, 1, tzinfo=UTC)
     duration = timedelta(microseconds=180_000)
-    assert calculate_rental_price(start, start + duration, "200.00") == 1
+    assert calculate_rental_price(start, start + duration, "100.00") == 1
 
 
 def test_naive_or_reversed_times_are_rejected():

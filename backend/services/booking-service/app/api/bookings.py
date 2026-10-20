@@ -148,6 +148,34 @@ async def _load_active_vehicle(vehicle_id: UUID) -> dict[str, str]:
     return vehicle
 
 
+async def _require_rental_eligibility(identity: CognitoIdentity) -> None:
+    """Fail closed unless auth-service confirms a verified, KYC-approved renter."""
+    settings = get_settings()
+    if settings.auth_service_api_key is None:
+        raise HTTPException(status_code=503, detail="Driver verification is not available. Contact support before renting.")
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            response = await client.get(
+                f"{settings.auth_service_url.rstrip('/')}/auth/internal/users/{identity.subject}/rental-eligibility",
+                headers={"X-Auth-Service-Key": settings.auth_service_api_key.get_secret_value()},
+            )
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=503, detail="Driver verification is temporarily unavailable.") from exc
+    if response.status_code == 403:
+        raise HTTPException(status_code=403, detail="Verify your email and submit your driver licence and identity document before renting.")
+    if response.status_code != 200:
+        raise HTTPException(status_code=503, detail="Driver verification is temporarily unavailable.")
+    result = response.json()
+    if result.get("eligible") is not True:
+        state = result.get("status")
+        detail = {
+            "not_submitted": "Submit your driver licence and identity document before renting.",
+            "pending": "Your driver licence and identity documents are awaiting administrator approval.",
+            "rejected": "A verification document was rejected. Upload a replacement before renting.",
+        }.get(state, "Complete driver and identity verification before renting.")
+        raise HTTPException(status_code=403, detail=detail)
+
+
 @router.post("", response_model=BookingRead, status_code=status.HTTP_201_CREATED)
 async def create_booking(
     payload: BookingCreate,
@@ -155,6 +183,12 @@ async def create_booking(
     db: AsyncSession | None = Depends(get_optional_db),
 ):
     session = _require_database(db)
+    if not payload.agreement_accepted:
+        raise HTTPException(status_code=422, detail="Accept the rental agreement before reserving a vehicle.")
+    settings = get_settings()
+    if payload.agreement_version != settings.rental_agreement_version:
+        raise HTTPException(status_code=409, detail="The rental agreement has changed. Review and accept the current version.")
+    await _require_rental_eligibility(identity)
     vehicle = await _load_active_vehicle(payload.vehicle_id)
     try:
         amount_minor = calculate_rental_price(
@@ -191,6 +225,7 @@ async def create_booking(
 async def list_available_vehicles(
     pickup_at: datetime,
     return_at: datetime,
+    make: str | None = Query(default=None, min_length=1, max_length=80),
     limit: int = Query(default=100, ge=1, le=250),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession | None = Depends(get_optional_db),
@@ -204,7 +239,10 @@ async def list_available_vehicles(
         async with httpx.AsyncClient(timeout=4.0) as client:
             response = await client.get(
                 f"{settings.car_service_url.rstrip('/')}/vehicles",
-                params={"status": "active", "limit": limit, "offset": offset},
+                params={
+                    "status": "active", "limit": limit, "offset": offset,
+                    **({"make": make.strip()} if make else {}),
+                },
             )
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=503, detail="Vehicle inventory is unavailable.") from exc
@@ -244,6 +282,7 @@ async def create_booking_payment_intent(
     booking = await BookingRepository(_require_database(db)).get(booking_id)
     if booking is None or booking.customer_id != _customer_id(identity):
         raise HTTPException(status_code=404, detail="Booking not found.")
+    await _require_rental_eligibility(identity)
     if booking.status != "pending" or booking.expires_at is None or booking.expires_at <= datetime.now(UTC):
         raise HTTPException(status_code=409, detail="Booking hold has expired or is no longer payable.")
     settings = get_settings()
@@ -461,6 +500,36 @@ async def return_booking(
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     await repository.record_status_event(booking, previous_status, booking.status, identity.subject)
+    await session.commit()
+    return booking
+
+
+@router.post("/{booking_id}/return-request", response_model=BookingRead)
+async def request_booking_return(
+    booking_id: UUID,
+    identity: CognitoIdentity = Depends(current_identity),
+    db: AsyncSession | None = Depends(get_optional_db),
+):
+    """Customer reports the vehicle returned once the booked rental window ends."""
+    session = _require_database(db)
+    repository = BookingRepository(session)
+    booking = await repository.get_for_update(booking_id)
+    if booking is None or booking.customer_id != _customer_id(identity):
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    now = datetime.now(UTC)
+    if booking.status != "active":
+        raise HTTPException(status_code=409, detail="Only an active rental can be returned.")
+    if booking.return_at > now:
+        raise HTTPException(status_code=409, detail="You can report the return after the scheduled rental period ends.")
+    previous_status = booking.status
+    booking.status = next_booking_status(
+        previous_status, "return", now=now,
+        pickup_at=booking.pickup_at, return_at=booking.return_at,
+    )
+    await repository.record_status_event(
+        booking, previous_status, booking.status, identity.subject,
+        "Customer reported the vehicle returned; awaiting administrator inspection",
+    )
     await session.commit()
     return booking
 

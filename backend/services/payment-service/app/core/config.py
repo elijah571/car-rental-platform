@@ -2,8 +2,22 @@ from functools import lru_cache
 from pydantic import SecretStr
 from urllib.parse import quote_plus
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _async_database_url(url: str) -> str:
+    if url.startswith("postgres://"):
+        return "postgresql+asyncpg://" + url.removeprefix("postgres://")
+    if url.startswith("postgresql://"):
+        return "postgresql+asyncpg://" + url.removeprefix("postgresql://")
+    return url
+
+
+def _http_url(value: str | None) -> str | None:
+    if value and not value.startswith(("http://", "https://")):
+        return f"http://{value}"
+    return value
 
 
 class Settings(BaseSettings):
@@ -34,6 +48,11 @@ class Settings(BaseSettings):
     postgres_host: str = Field(default="127.0.0.1", validation_alias="POSTGRES_HOST")
     postgres_port: int = Field(default=5433, validation_alias="POSTGRES_PORT")
 
+    @field_validator('booking_service_url', 'receipt_service_url', 'auth_service_url', 'notification_service_url', mode="before")
+    @classmethod
+    def normalize_service_urls(cls, value: str | None) -> str | None:
+        return _http_url(value)
+
     model_config = SettingsConfigDict(
         env_file="../../../.env",
         env_file_encoding="utf-8",
@@ -50,7 +69,7 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         if self.database_url_override:
-            return self.database_url_override
+            return _async_database_url(self.database_url_override)
         if not self.database_configured:
             raise ValueError("Set DATABASE_URL or all POSTGRES_* credentials to use the database.")
         username = quote_plus(self.postgres_user or "")

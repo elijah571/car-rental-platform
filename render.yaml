@@ -1,0 +1,205 @@
+services:
+  - type: web
+    name: drivewell-auth
+    runtime: docker
+    dockerfilePath: ./backend/services/auth-service/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: drivewell-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: drivewell-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: drivewell-redis
+          type: keyvalue
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: AUTH_ALLOW_DEV_VERIFICATION_CODE
+        value: "false"
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: PLATFORM_ADMIN_EMAILS
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "465"
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+  - type: web
+    name: drivewell-car
+    runtime: docker
+    dockerfilePath: ./backend/services/car-service/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: drivewell-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: drivewell-db
+          property: connectionString
+      - key: PORT
+        value: "10000"
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+  - type: web
+    name: drivewell-booking
+    runtime: docker
+    dockerfilePath: ./backend/services/booking-service/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: drivewell-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: drivewell-db
+          property: connectionString
+      - key: PORT
+        value: "10000"
+      - key: CAR_SERVICE_URL
+        fromService:
+          name: drivewell-car
+          type: web
+          property: hostport
+      - key: PAYMENT_SERVICE_URL
+        fromService:
+          name: drivewell-payment
+          type: web
+          property: hostport
+      - key: RECEIPT_SERVICE_URL
+        fromService:
+          name: drivewell-receipt
+          type: pserv
+          property: hostport
+      - key: AUTH_SERVICE_URL
+        fromService:
+          name: drivewell-auth
+          type: web
+          property: hostport
+      - key: NOTIFICATION_SERVICE_URL
+        fromService:
+          name: drivewell-notification
+          type: pserv
+          property: hostport
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: PLATFORM_ADMIN_EMAILS
+        sync: false
+
+  - type: web
+    name: drivewell-payment
+    runtime: docker
+    dockerfilePath: ./backend/services/payment-service/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: drivewell-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: drivewell-db
+          property: connectionString
+      - key: PORT
+        value: "10000"
+      - key: BOOKING_SERVICE_URL
+        fromService:
+          name: drivewell-booking
+          type: web
+          property: hostport
+      - key: RECEIPT_SERVICE_URL
+        fromService:
+          name: drivewell-receipt
+          type: pserv
+          property: hostport
+      - key: AUTH_SERVICE_URL
+        fromService:
+          name: drivewell-auth
+          type: web
+          property: hostport
+      - key: NOTIFICATION_SERVICE_URL
+        fromService:
+          name: drivewell-notification
+          type: pserv
+          property: hostport
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+  - type: pserv
+    name: drivewell-notification
+    runtime: docker
+    dockerfilePath: ./backend/services/notification-service/Dockerfile
+    dockerContext: ./backend
+    envVars:
+      - fromGroup: drivewell-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: drivewell-db
+          property: connectionString
+      - key: PORT
+        value: "10000"
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "465"
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+  - type: pserv
+    name: drivewell-receipt
+    runtime: docker
+    dockerfilePath: ./backend/services/receipt-service/Dockerfile
+    dockerContext: ./backend
+    envVars:
+      - fromGroup: drivewell-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: drivewell-db
+          property: connectionString
+      - key: PORT
+        value: "10000"
+
+  - type: keyvalue
+    name: drivewell-redis
+    maxmemoryPolicy: allkeys-lru
+
+databases:
+  - name: drivewell-db
+    databaseName: drivewell
+    user: drivewell
+
+envVarGroups:
+  - name: drivewell-shared
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AUTH_SERVICE_API_KEY
+        generateValue: true
+      - key: PAYMENT_SERVICE_API_KEY
+        generateValue: true
+      - key: PAYMENT_TO_BOOKING_API_KEY
+        generateValue: true
+      - key: RECEIPT_SERVICE_API_KEY
+        generateValue: true
+      - key: NOTIFICATION_SERVICE_API_KEY
+        generateValue: true

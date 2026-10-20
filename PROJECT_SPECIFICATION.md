@@ -84,7 +84,9 @@ Vehicle attributes explicitly identified so far include:
   location, and maintenance status may be useful, but have not yet been
   finalized as requirements.
   2.3 Pricing and currency
-- Hourly rate: USD $100 per hour.
+- Each vehicle has its own administrator-managed hourly rate. New vehicle forms
+  may default to USD $25 per hour, and admins can set or update the rate per car.
+- Customers choose rental duration in the checkout cart, up to seven days.
 - Charge proportionally to the actual duration of the selected rental
   period.
 - Currency: USD only for the initial version.

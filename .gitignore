@@ -12,3 +12,5 @@ wheels/
 node_modules/
 frontend/dist/
 frontend/.vite/
+prod.env
+.env.example
