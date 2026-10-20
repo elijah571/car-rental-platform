@@ -64,6 +64,9 @@ jobs:
           --health-retries 10
 
     env:
+      # Deterministic test-only signing keys; never use these outside CI.
+      JWT_SECRET: ci-only-jwt-signing-secret-not-for-production-000000000000
+      JWT_REFRESH_SECRET: ci-only-refresh-signing-secret-not-for-production-000000000000
       POSTGRES_USER: car_rental_ci
       POSTGRES_PASSWORD: ci_test_password
       POSTGRES_DB: car_rental_ci
