@@ -1,0 +1,83 @@
+name: Service CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  service:
+    name: ${{ matrix.name }} migrations and tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: auth-service
+            directory: backend/services/auth-service
+          - name: car-service
+            directory: backend/services/car-service
+          - name: booking-service
+            directory: backend/services/booking-service
+          - name: notification-service
+            directory: backend/services/notification-service
+          - name: payment-service
+            directory: backend/services/payment-service
+          - name: receipt-service
+            directory: backend/services/receipt-service
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: car_rental_ci
+          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_DB: car_rental_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U car_rental_ci -d car_rental_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRES_USER: car_rental_ci
+      POSTGRES_PASSWORD: ci_test_password
+      POSTGRES_DB: car_rental_ci
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: python -m pip install uv
+
+      - name: Install locked dependencies
+        working-directory: ${{ matrix.directory }}
+        run: uv sync --locked --all-groups
+
+      - name: Apply service migrations
+        working-directory: ${{ matrix.directory }}
+        run: uv run --locked alembic upgrade head
+
+      - name: Check migration model alignment
+        working-directory: ${{ matrix.directory }}
+        run: uv run --locked alembic check
+
+      - name: Run service tests
+        working-directory: ${{ matrix.directory }}
+        run: uv run --locked pytest -q
+
+      - name: Run shared security tests
+        if: matrix.name == 'booking-service'
+        env:
+          PYTHONPATH: backend/shared/platform-security
+        run: uv run --project backend/services/booking-service pytest -q backend/shared/platform-security/tests

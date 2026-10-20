@@ -1,0 +1,14 @@
+[project]
+name = "car-rental-platform-security"
+version = "0.1.0"
+description = "Shared Cognito access-token validation for platform services."
+requires-python = ">=3.12"
+dependencies = ["fastapi>=0.147.0", "PyJWT[crypto]>=2.10.1"]
+
+[build-system]
+requires = ["uv_build>=0.12.21,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "platform_security"
+module-root = "."
