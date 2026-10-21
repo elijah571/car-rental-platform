@@ -15,6 +15,12 @@ This directory contains the Python 3.12 / FastAPI microservices and the shared p
 
 Start the complete backend from the repository root with `docker compose up --build`. For an individual service, change into its `services/<name>` directory and use `uv sync --locked`, then `uv run --locked uvicorn app.main:app --reload --port <port>`. Set database and integration configuration in the root `.env` file.
 
+## Deploying all services as one Render Web Service
+
+The root-level `Dockerfile` builds a single container that runs all six services behind an Nginx reverse proxy. In Render, set **Root Directory** to `backend`, **Dockerfile Path** to `Dockerfile`, and **Docker Build Context Directory** to `.`. Render will route public traffic to the container's `PORT`; the proxy maps `/api/auth`, `/api/cars`, and `/api/bookings` to their services. Set `DATABASE_URL`, `REDIS_URL`, JWT/API-key secrets, Stripe settings, and email settings in Render's Environment page. Set `CORS_ALLOWED_ORIGINS` to the Vercel site origin.
+
+For Vercel, set `VITE_AUTH_API_URL`, `VITE_CAR_API_URL`, and `VITE_BOOKING_API_URL` to `https://<render-host>/api/auth`, `https://<render-host>/api/cars`, and `https://<render-host>/api/bookings` respectively. This single-container layout is intended for a small deployment; each service runs as a separate process inside the same Render instance.
+
 The shared Cognito token validation code is in `shared/platform-security`. GitHub Actions installs each service from its lockfile, applies migrations, checks Alembic alignment, and runs tests.
 
 For local UI development, the ten supplied sample vehicle records can be added idempotently with `uv run --project . python ../../scripts/seed_demo_vehicles.py` from `services/car-service`.

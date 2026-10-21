@@ -1,0 +1,62 @@
+server {
+    listen ${PORT};
+    server_name _;
+    client_max_body_size 20m;
+
+    location = /health {
+        proxy_pass http://127.0.0.1:8000/health;
+    }
+
+    location = / {
+        default_type application/json;
+        return 200 '{"service":"car-rental-backend","status":"healthy"}';
+    }
+
+    location ^~ /api/auth {
+        rewrite ^/api/auth(.*)$ /auth$1 break;
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ^~ /api/cars {
+        rewrite ^/api/cars(.*)$ /vehicles$1 break;
+        proxy_pass http://127.0.0.1:8002;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ^~ /api/bookings {
+        rewrite ^/api/bookings(.*)$ /bookings$1 break;
+        proxy_pass http://127.0.0.1:8001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ^~ /api/payments {
+        rewrite ^/api/payments(.*)$ /payments$1 break;
+        proxy_pass http://127.0.0.1:8004;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ^~ /api/receipts {
+        rewrite ^/api/receipts(.*)$ /receipts$1 break;
+        proxy_pass http://127.0.0.1:8005;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ^~ /api/notifications {
+        rewrite ^/api/notifications(.*)$ /notifications$1 break;
+        proxy_pass http://127.0.0.1:8003;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

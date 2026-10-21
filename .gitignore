@@ -9,8 +9,9 @@ wheels/
 # Virtual environments
 .venv
 .env
+.env.*
+!frontend/.env.example
 node_modules/
 frontend/dist/
 frontend/.vite/
 prod.env
-.env.example

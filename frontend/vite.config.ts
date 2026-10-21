@@ -29,6 +29,13 @@ export default defineConfig(({ mode }) => {
     ...(mode === 'production' ? loadProductionClientEnv() : {}),
     ...Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith('VITE_') || key === 'STRIPE_PUBLISHABLE_KEY')),
   };
+  if (mode === 'production') {
+    const required = ['VITE_AUTH_API_URL', 'VITE_CAR_API_URL', 'VITE_BOOKING_API_URL'];
+    const missing = required.filter((key) => !env[key]?.trim());
+    if (missing.length) {
+      throw new Error(`Missing production environment variables: ${missing.join(', ')}. Set them in Vercel Project Settings → Environment Variables.`);
+    }
+  }
   return {
     envDir: repositoryRoot,
     define: {
