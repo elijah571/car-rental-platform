@@ -37,13 +37,6 @@ def create_app() -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
-    application.add_middleware(
-        CORSMiddleware,
-        allow_origins=[origin.strip() for origin in get_settings().cors_allowed_origins.split(",") if origin.strip()],
-        allow_credentials=False,
-        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
-    )
     application.include_router(auth_router)
     application.include_router(kyc_router)
     application.include_router(support_router)
@@ -92,4 +85,10 @@ def create_app() -> FastAPI:
     return application
 
 
-app = create_app()
+app = CORSMiddleware(
+    app=create_app(),
+    allow_origins=[origin.strip() for origin in get_settings().cors_allowed_origins.split(",") if origin.strip()],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
+)
