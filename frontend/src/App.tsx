@@ -281,6 +281,18 @@ export default function App() {
       }
     } catch (e) {
       const message = (e as Error).message;
+      if (view === 'register' && /already exists/i.test(message)) {
+        setAccountEmail(email);
+        setView('login');
+        setError('An account with this email already exists. Sign in, or choose “Resend verification code” if it has not been verified.');
+        return;
+      }
+      if (view === 'register' && /verification email could not be sent/i.test(message)) {
+        setAccountEmail(email);
+        setView('login');
+        setError('Your account was created, but the verification email could not be delivered. Check the Render Gmail SMTP settings, then choose “Resend verification code”.');
+        return;
+      }
       setError(message);
       if (view === 'login' && /verify your email/i.test(message)) {
         setAccountEmail(email); setView('confirm'); setNotice('Your email is not verified. Enter your code or request a new one.');
