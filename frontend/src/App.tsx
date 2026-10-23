@@ -1,6 +1,6 @@
 import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowLeft, ArrowRight, ArrowUpRight, BadgeCheck, CalendarDays, CarFront, Check, ChevronDown, CircleHelp, Clock3, Compass, CreditCard, Download, Fuel, Gauge, KeyRound, LayoutDashboard, ListFilter, LockKeyhole, LogOut, Menu, MessageCircle, Plus, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Users, Wifi, WifiOff, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, BadgeCheck, CalendarDays, CarFront, Check, ChevronDown, CircleAlert, CircleHelp, Clock3, Compass, CreditCard, Download, Fuel, Gauge, KeyRound, LayoutDashboard, ListFilter, LockKeyhole, LogOut, Menu, MessageCircle, Plus, Search, Send, Settings, ShieldCheck, SlidersHorizontal, Sparkles, ThumbsUp, Users, Wifi, WifiOff, X } from 'lucide-react';
 import { api, dateTime, imageFor, money, tokenStore } from './api';
 import type { Booking, Receipt, Vehicle } from './types';
 import type { KycReview, KycStatus } from './api';
@@ -56,8 +56,31 @@ export default function App() {
   const [sortBy, setSortBy] = useState('recommended');
   const [view, setView] = useState<'login' | 'register' | 'confirm' | 'resend' | 'forgot' | 'reset' | null>(null);
   const [accountEmail, setAccountEmail] = useState(localStorage.getItem('drivewell_email') || '');
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
+  const lastToast = useRef<{ type: 'success' | 'error'; message: string; at: number } | null>(null);
+  function showToast(type: 'success' | 'error', message: string) {
+    if (!message) return;
+    const previous = lastToast.current;
+    if (previous?.type === type && previous.message === message && Date.now() - previous.at < 800) return;
+    lastToast.current = { type, message, at: Date.now() };
+    setToast({ type, message });
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 4200);
+  }
+  const setError = (message: string) => showToast('error', message);
+  const setNotice = (message: string) => showToast('success', message);
+  useEffect(() => {
+    const onToast = (event: Event) => {
+      const detail = (event as CustomEvent<{ type: 'success' | 'error'; message: string }>).detail;
+      if (detail?.message) showToast(detail.type, detail.message);
+    };
+    window.addEventListener('drivewell:toast', onToast);
+    return () => {
+      window.removeEventListener('drivewell:toast', onToast);
+      window.clearTimeout(toastTimer.current);
+    };
+  }, []);
   const [kycPrompt, setKycPrompt] = useState<{ status: string; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
@@ -315,8 +338,12 @@ export default function App() {
         <footer className="footer"><span>DRIVEWELL / YOUR JOURNEY, WELL TAKEN</span><span>Clear pricing. Confident journeys.</span><span>© 2026 Drivewell</span></footer>
       </>}
     </div>
-    {error && <div className="toast toast-error" role="alert"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss"><X size={16} /></button></div>}
-    {notice && <div className="toast" role="status"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss"><X size={16} /></button></div>}
+    {toast && <div className={`action-toast action-toast-${toast.type}`} role={toast.type === 'error' ? 'alert' : 'status'} aria-live={toast.type === 'error' ? 'assertive' : 'polite'}>
+      <span className="action-toast-icon">{toast.type === 'success' ? <ThumbsUp size={18} strokeWidth={2.2} /> : <CircleAlert size={18} strokeWidth={2.2} />}</span>
+      <span className="action-toast-message">{toast.message}</span>
+      <button type="button" onClick={() => setToast(null)} aria-label="Dismiss notification"><X size={16} /></button>
+      <span className="action-toast-progress" />
+    </div>}
     {receipt && <ReceiptDialog receipt={receipt} onClose={() => setReceipt(null)} />}
     {view && <AuthDialog mode={view} email={accountEmail} onClose={() => setView(null)} onSwitch={setView} onSubmit={handleAuth} />}
     {kycPrompt && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setKycPrompt(null); }}><section className="confirm-modal kyc-required-modal" role="alertdialog" aria-modal="true" aria-labelledby="kyc-required-title" aria-describedby="kyc-required-message"><button className="modal-close" aria-label="Close verification notice" onClick={() => setKycPrompt(null)}><X size={19} /></button><span className="auth-icon"><ShieldCheck size={23} /></span><p className="eyebrow">VERIFICATION REQUIRED</p><h2 id="kyc-required-title">Complete driver verification to rent</h2><p id="kyc-required-message" className="muted">{kycPrompt.message}</p><p className="kyc-approval-note">Your rental stays blocked until an administrator approves both required documents.</p><div className="form-actions"><button className="btn btn-outline" onClick={() => setKycPrompt(null)}>Not now</button><button className="btn btn-primary" onClick={() => { setKycPrompt(null); setPage('account'); }}> {kycPrompt.status === 'pending' ? 'View verification status' : 'Submit documents'} <ArrowRight size={15} /></button></div></section></div>}
