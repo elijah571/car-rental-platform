@@ -127,7 +127,12 @@ class RedisStore:
 
 @lru_cache
 def get_redis() -> RedisStore:
-    return RedisStore(get_settings().redis_connection_url)
+    try:
+        return RedisStore(get_settings().redis_connection_url)
+    except ValueError as exc:
+        # Treat malformed deployment URLs like Redis transport failures so
+        # auth endpoints return a controlled 503 instead of an unhandled 500.
+        raise RedisError("REDIS_URL must be a redis:// or rediss:// URL.") from exc
 
 
 async def close_redis() -> None:
