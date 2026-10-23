@@ -17,6 +17,7 @@ def get_engine() -> AsyncEngine:
         get_settings().database_url,
         echo=False,
         pool_pre_ping=True,
+        connect_args={"server_settings": {"search_path": "public"}},
     )
 
 

@@ -13,7 +13,12 @@ class Base(DeclarativeBase):
 
 @lru_cache
 def get_engine() -> AsyncEngine:
-    return create_async_engine(get_settings().database_url, echo=False, pool_pre_ping=True)
+    return create_async_engine(
+        get_settings().database_url,
+        echo=False,
+        pool_pre_ping=True,
+        connect_args={"server_settings": {"search_path": "public"}},
+    )
 
 
 @lru_cache

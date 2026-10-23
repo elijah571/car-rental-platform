@@ -56,6 +56,7 @@ async def run_migrations_online() -> None:
         configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={"server_settings": {"search_path": "public"}},
     )
     try:
         async with engine.connect() as connection:
