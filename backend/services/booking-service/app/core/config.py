@@ -59,7 +59,15 @@ class Settings(BaseSettings):
     postgres_db: str | None = Field(default=None, validation_alias="POSTGRES_DB")
     postgres_host: str = Field(default="127.0.0.1", validation_alias="POSTGRES_HOST")
     postgres_port: int = Field(default=5433, validation_alias="POSTGRES_PORT")
-    cors_allowed_origins: str = Field(default="http://localhost:5173,http://127.0.0.1:5173", validation_alias="CORS_ALLOWED_ORIGINS")
+    cors_allowed_origins: str = Field(
+        default=(
+            "http://localhost:5173,http://127.0.0.1:5173,"
+            "https://car-rental-platform-phi.vercel.app,"
+            "https://car-rental-platform-git-master-elijahs-projects-e0099976.vercel.app,"
+            "https://car-rental-platform-pazbqdsw8-elijahs-projects-e0099976.vercel.app"
+        ),
+        validation_alias="CORS_ALLOWED_ORIGINS",
+    )
 
     @field_validator('car_service_url', 'payment_service_url', 'receipt_service_url', 'auth_service_url', 'notification_service_url', mode="before")
     @classmethod
