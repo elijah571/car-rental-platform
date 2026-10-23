@@ -76,6 +76,8 @@ async def run_migrations_online() -> None:
 
     try:
         async with connectable.connect() as connection:
+            await connection.exec_driver_sql("CREATE SCHEMA IF NOT EXISTS public")
+            await connection.commit()
             await connection.run_sync(do_run_migrations)
     finally:
         await connectable.dispose()
